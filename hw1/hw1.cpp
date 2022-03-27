@@ -32,14 +32,31 @@ struct ProcInfo {
   string name;
 };
 
+void PrintHeader();
+void PrintContent(struct ProcInfo &);
+void ParamError();
+bool IsNumber(const string &);
+bool GetUser(string, string &);
+bool GetArg(bool *, bool *, bool *, int, char **, string *, string *, string *);
+bool GetCmd(string, string &, string, string, string);
+int GetCwdProc(string, struct ProcInfo &, string, string, string);
+int GetRootProc(string, struct ProcInfo &, string, string, string);
+int GetExeProc(string, struct ProcInfo &, string, string, string);
+int GetMemProc(string, struct ProcInfo &, string, string, string);
+int GetFdProc(string, struct ProcInfo &, string, string, string);
+bool GetName(string, struct ProcInfo &, bool);
+void GetType(struct ProcInfo &, struct stat &);
+
 void PrintHeader() {
   cout << "COMMAND\tPID\tUSER\tFD\tTYPE\tNODE\tNAME" << endl;
   return;
 }
 
 void PrintContent(struct ProcInfo &proc) {
-  cout << proc.cmd << "\t" << proc.pid << "\t" << proc.user << "\t" << \
-  proc.fd << "\t" << proc.type << "\t" << proc.name << endl;
+  cout << proc.cmd << "\t" << proc.pid << "\t" << \
+  proc.user << "\t" << proc.fd << "\t" << \
+  proc.type << "\t" << proc.node << "\t" << \
+  proc.name << endl;
   return;
 }
 
@@ -137,6 +154,7 @@ bool GetCmd(string work_dir, string &cmd, string c, string t, string f) {
   }
 
   while (getline(input_file, line)) {
+    // 檢查-c參數
     if (c == "" || line.find(c) != std::string::npos) {
       cmd = line;
     }
@@ -165,17 +183,19 @@ struct stat {
 // 0 for general file, need to include TYPE and NODE
 // 1 for NOFD
 // 2 for error
-int FindProc(string work_dir, struct ProcInfo &proc, string c, string t, string f) {
+int GetFdProc(string work_dir, struct ProcInfo &proc, string c, string t, string f) {
   DIR *dp;
   struct dirent *dirp;
-  ssize_t ssnum = 0;
   char buffer[PATH_MAX];
   struct stat stat_buffer;
+  ssize_t ssize_num;
 
   if ((dp = opendir(work_dir.c_str())) == NULL) {
     // 表示此fd permission denied
     if (errno == EACCES) {
       proc.fd = "NOFD";
+      proc.type = "";
+      proc.node = "";
       proc.name = work_dir + " (Permission denied)";
       PrintContent(proc);
       return 0;
@@ -186,7 +206,9 @@ int FindProc(string work_dir, struct ProcInfo &proc, string c, string t, string 
   while ((dirp = readdir(dp)) != NULL) {
     if (IsNumber(dirp->d_name)) {
       string current_dir = work_dir + "/" + dirp->d_name;
-      if ((ssnum = readlink(current_dir.c_str(), buffer, PATH_MAX)) < 0) {
+
+      // get proc name from readkink
+      if ((ssize_num = readlink(current_dir.c_str(), buffer, PATH_MAX)) < 0) {
         cerr << "readlink error: " << errno << endl;
         return 2;
       }
@@ -194,30 +216,18 @@ int FindProc(string work_dir, struct ProcInfo &proc, string c, string t, string 
         cerr << "stat error: " << errno << endl;
         return 2;
       }
-
-      // https://blog.csdn.net/astrotycoon/article/details/8679676
-      if (stat_buffer.st_mode & S_IFMT == S_IFDIR)
-        proc.type = "DIR";
-      else if (stat_buffer.st_mode & S_IFMT == S_IFREG)
-        proc.type = "REG";
-      else if (stat_buffer.st_mode & S_IFMT == S_IFCHR)
-        proc.type = "CHR";
-      else if (stat_buffer.st_mode & S_IFMT == S_IFIFO)
-        proc.type = "FIFO";
-      else if (stat_buffer.st_mode & S_IFMT == S_IFSOCK)
-        proc.type = "SOCK";
-      else
-        proc.type = "unknown";
+      GetType(proc, stat_buffer);
 
       // get node number
       auto ino = stat_buffer.st_ino;
-      string right_end = "]";
+      proc.node = to_string(ino);
+      //string right_end = "]";
       if (proc.type == "FIFO")
-        proc.name = "pipe:[" + ino + right_end;
+        proc.name = "pipe:[" + proc.node + (string)"]";
       else if (proc.type == "SOCK")
-        proc.name = "socket:[" + ino + right_end;
+        proc.name = "socket:[" + proc.node + (string)"]";
       else
-        proc.name = work_dir;
+        proc.name = string(dirname(buffer));  // get proc name from buffer
 
       // http://naeilproj.blogspot.com/2015/08/linux-c-c.html
       // check access permission
@@ -232,11 +242,9 @@ int FindProc(string work_dir, struct ProcInfo &proc, string c, string t, string 
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == ""))
         PrintContent(proc);
-
     }
   }
   closedir(dp);
-
   return 0;
 }
 
@@ -245,6 +253,49 @@ bool GetName(string work_dir, struct ProcInfo &proc, bool is_open_fd) {
     proc.name = work_dir + "/fd (Permission denied)";
   }
   return true;
+}
+
+void GetType(struct ProcInfo &proc, struct stat &stat_buffer) {
+  // https://blog.csdn.net/astrotycoon/article/details/8679676
+  if (stat_buffer.st_mode & S_IFMT == S_IFDIR)
+    proc.type = "DIR";
+  else if (stat_buffer.st_mode & S_IFMT == S_IFREG)
+    proc.type = "REG";
+  else if (stat_buffer.st_mode & S_IFMT == S_IFCHR)
+    proc.type = "CHR";
+  else if (stat_buffer.st_mode & S_IFMT == S_IFIFO)
+    proc.type = "FIFO";
+  else if (stat_buffer.st_mode & S_IFMT == S_IFSOCK)
+    proc.type = "SOCK";
+  else
+    proc.type = "unknown";
+  return;
+}
+
+int GetCwdProc(string work_dir, struct ProcInfo &proc, string c, string t, string f) {
+
+  char buffer[PATH_MAX];
+  struct stat stat_buffer;
+  ssize_t ssize_num;
+
+  if ((dp = opendir(work_dir.c_str())) == NULL) {
+
+  }
+
+
+  return 0;
+}
+
+int GetRootProc(string work_dir, struct ProcInfo &proc, string c, string t, string f) {
+  return 0;
+}
+
+int GetExeProc(string work_dir, struct ProcInfo &proc, string c, string t, string f) {
+  return 0;
+}
+
+int GetMemProc(string work_dir, struct ProcInfo &proc, string c, string t, string f) {
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -268,7 +319,7 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   } 
   bool is_cmd = false, is_user = false, is_name = false;
-  int fd_num = 0, type_num;
+  int fd_num = 0, type_num = 0;
   while ((dirp = readdir(dp)) != NULL) {
     if (IsNumber(dirp->d_name)) {
       struct ProcInfo proc;
@@ -286,7 +337,7 @@ int main(int argc, char *argv[]) {
         cerr << "get user failed: " << errno << endl;
         continue;
       }
-      if ((fd_num = FindProc(work_dir + "/fd", proc, strc, strt, strf)) == 2) {
+      if ((fd_num = GetFdProc(work_dir + "/fd", proc, strc, strt, strf)) == 2) {
         cerr << "get fd failed: " << errno << endl;
         continue;
       }
@@ -310,7 +361,7 @@ int main(int argc, char *argv[]) {
       }
       */
 
-      PrintContent(proc);
+      //PrintContent(proc);
 
     }
   }
