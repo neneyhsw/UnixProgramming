@@ -92,7 +92,7 @@ bool GetUser(string work_dir, string &user){
   struct passwd *pw;
   struct stat stat_buffer;
 
-  if (stat(work_dir.c_str(), &stat_buffer) < 0) {
+  if (stat(work_dir.c_str(), &stat_buffer) == -1) {
     //cerr << "stat error: " << errno << endl;
     return false;
   }
@@ -226,9 +226,10 @@ int GetFdProc(string work_dir, struct ProcInfo &proc, string c, string t, string
       proc.node = "";
       proc.name = work_dir + " (Permission denied)";
 
-      if (auto pos = proc.name.find("(deleted)") != string::npos) {
+      size_t pos = proc.name.find("(deleted)");
+      if (pos != string::npos) {
+        proc.name.erase(pos, pos+9);  // erase 9 char (deleted)
         proc.fd = "DEL";
-        proc.name.erase(pos, 9);  // erase 9 char (deleted)
       }
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == ""))
@@ -241,11 +242,11 @@ int GetFdProc(string work_dir, struct ProcInfo &proc, string c, string t, string
       string current_dir = work_dir + "/" + dirp->d_name;
 
       // get proc name from readkink
-      if ((ssize_num = readlink(current_dir.c_str(), buffer, PATH_MAX)) < 0) {
+      if ((ssize_num = readlink(current_dir.c_str(), buffer, PATH_MAX)) == -1) {
         //cerr << "readlink error: " << errno << endl;
         return 2;
       }
-      if (stat(current_dir.c_str(), &stat_buffer) < 0) {
+      if (stat(current_dir.c_str(), &stat_buffer) == -1) {
         //cerr << "stat error: " << errno << endl;
         return 2;
       }
@@ -272,9 +273,10 @@ int GetFdProc(string work_dir, struct ProcInfo &proc, string c, string t, string
       else if (access(current_dir.c_str(), W_OK) == 0)
         proc.fd += "w";
 
-      if (auto pos = proc.name.find("(deleted)") != string::npos) {
+      size_t pos = proc.name.find("(deleted)");
+      if (pos != string::npos) {
+        proc.name.erase(pos, pos+9);  // erase 9 char (deleted)
         proc.fd = "DEL";
-        proc.name.erase(pos, 9);  // erase 9 char (deleted)
       }
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == ""))
@@ -309,16 +311,17 @@ int GetLinkProc(string work_dir, struct ProcInfo &proc, string c, string t, stri
   ssize_t ssize_num;
 
   // get filename from readlink
-  if ((ssize_num = readlink(work_dir.c_str(), buffer, PATH_MAX)) < 0) {
+  if ((ssize_num = readlink(work_dir.c_str(), buffer, PATH_MAX)) == -1) {
     // 沒有存取權限
     if (errno == EACCES) {
       proc.type = "unknown";
       proc.fd = link_name;
       proc.name = work_dir + " (Permission denied)";
 
-      if (auto pos = proc.name.find("(deleted)") != string::npos) {
+      size_t pos = proc.name.find("(deleted)");
+      if (pos != string::npos) {
+        proc.name.erase(pos, pos+9);  // erase 9 char (deleted)
         proc.fd = "DEL";
-        proc.name.erase(pos, 9);  // erase 9 char (deleted)
       }
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == ""))
@@ -327,7 +330,7 @@ int GetLinkProc(string work_dir, struct ProcInfo &proc, string c, string t, stri
     }
   }
   else {
-    if (stat(work_dir.c_str(), &stat_buffer) < 0) {
+    if (stat(work_dir.c_str(), &stat_buffer) == -1) {
       //cerr << "stat error: " << errno << endl;
       return 2;
     }
@@ -344,11 +347,11 @@ int GetLinkProc(string work_dir, struct ProcInfo &proc, string c, string t, stri
     else
       proc.name = string(dirname(buffer));  // get proc name from buffer
 
-    if (auto pos = proc.name.find("(deleted)") != string::npos) {
+    size_t pos = proc.name.find("(deleted)");
+    if (pos != string::npos) {
+      proc.name.erase(pos, pos+9);  // erase 9 char (deleted)
       proc.fd = "DEL";
-      proc.name.erase(pos, 9);  // erase 9 char (deleted)
     }
-
     if ((proc.type.find(t) != std::string::npos || t == "") && \
       (proc.name.find(f) != std::string::npos || f == ""))
       PrintContent(proc);
@@ -360,7 +363,7 @@ int GetLinkProc(string work_dir, struct ProcInfo &proc, string c, string t, stri
 int GetMemProc(string work_dir, struct ProcInfo &proc, string c, string t, string f) {
   char buffer[PATH_MAX];
   struct stat stat_buffer;
-  if (stat(work_dir.c_str(), &stat_buffer) < 0) {
+  if (stat(work_dir.c_str(), &stat_buffer) == -1) {
     //cerr << "stat error: " << errno << endl;
     return 2;
   }
@@ -381,11 +384,12 @@ int GetMemProc(string work_dir, struct ProcInfo &proc, string c, string t, strin
     RemoveVectorSpaces(elements, "");
     proc.node = elements[4];
     proc.name = elements[5];
-
     proc.fd = "mem";
-    if (auto pos = proc.name.find("(deleted)") != string::npos) {
+
+    size_t pos = proc.name.find("(deleted)");
+    if (pos != string::npos) {
+      proc.name.erase(pos, pos+9);  // erase 9 char (deleted)
       proc.fd = "DEL";
-      proc.name.erase(pos, 9);  // erase 9 char (deleted)
     }
     if (pre_node != proc.node && pre_name != proc.name && proc.node != "0") {
       if ((proc.type.find(t) != std::string::npos || t == "") && \
