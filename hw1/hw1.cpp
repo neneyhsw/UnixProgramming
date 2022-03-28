@@ -410,7 +410,7 @@ int main(int argc, char *argv[]) {
   input_flag = GetArg(&flagc, &flagt, &flagf, argc, argv, &strc, &strt, &strf);  // check which parameter is input
 
   if (!input_flag) {
-    ParamError();
+    //ParamError();
     return EXIT_FAILURE;
   }
   PrintHeader();
