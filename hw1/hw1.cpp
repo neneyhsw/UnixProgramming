@@ -171,6 +171,7 @@ bool GetCmd(string work_dir, string &cmd, string c, string t, string f) {
       cmd = line;
     }
   }
+  input_file.close();
   return true;
 }
 
@@ -395,6 +396,7 @@ int GetMemProc(string work_dir, struct ProcInfo &proc, string c, string t, strin
       }
     }
   }
+  input_file.close();
 
   return 0;
 }
