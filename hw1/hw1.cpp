@@ -390,11 +390,9 @@ int GetMemProc(string work_dir, struct ProcInfo &proc, string c, string t, strin
     if (pre_node != proc.node && pre_name != proc.name && proc.node != "0") {
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == "")) {
-        if (pre_node != elements[4] && pre_name != elements[5]) {
-          PrintContent(proc);
-          pre_node = proc.node;
-          pre_name = proc.name;
-        }
+        PrintContent(proc);
+        pre_node = proc.node;
+        pre_name = proc.name;
       }
     }
   }
