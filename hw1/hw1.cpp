@@ -18,8 +18,8 @@ struct ProcInfo {
   string name;
 };
 
-void removeVectorSpaces(vector<string> &, string);
-vector<string> splitString (string, string);
+void RemoveVectorSpaces(vector<string> &, string);
+vector<string> SplitString (string, string);
 void PrintHeader();
 void PrintContent(struct ProcInfo &);
 void ParamError();
@@ -32,7 +32,7 @@ int GetMemProc(string, struct ProcInfo &, string, string, string);
 int GetFdProc(string, struct ProcInfo &, string, string, string);
 void GetType(struct ProcInfo &, struct stat &);
 
-void removeVectorSpaces(vector<string> &v, string delimiter) {
+void RemoveVectorSpaces(vector<string> &v, string delimiter) {
   vector<string>::iterator iter;
   for (iter = v.begin(); iter != v.end();) {
     if (*iter == delimiter)
@@ -43,7 +43,7 @@ void removeVectorSpaces(vector<string> &v, string delimiter) {
 }
 
 // for string delimiter
-vector<string> splitString (string s, string delimiter) {
+vector<string> SplitString (string s, string delimiter) {
   size_t pos_start = 0, pos_end, delim_len = delimiter.length();
   string token;
   vector<string> res;
@@ -52,7 +52,6 @@ vector<string> splitString (string s, string delimiter) {
     token = s.substr (pos_start, pos_end - pos_start);
     pos_start = pos_end + delim_len;
     res.push_back (token);
-    //res.push_back(delimiter);  // yhsw <++
   }
 
   res.push_back (s.substr (pos_start));
@@ -227,13 +226,15 @@ int GetFdProc(string work_dir, struct ProcInfo &proc, string c, string t, string
       proc.node = "";
       proc.name = work_dir + " (Permission denied)";
 
+      if (auto pos = proc.name.find("(deleted)") != string::npos) {
+        proc.fd = "DEL";
+        proc.name.erase(pos, 9);  // erase 9 char (deleted)
+      }
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == ""))
         PrintContent(proc);
       return 0;
     }
-    //cerr << "opendir error: " << errno << endl;
-    //return false;
   }
   while ((dirp = readdir(dp)) != NULL) {
     if (IsNumber(dirp->d_name)) {
@@ -275,7 +276,6 @@ int GetFdProc(string work_dir, struct ProcInfo &proc, string c, string t, string
         proc.fd = "DEL";
         proc.name.erase(pos, 9);  // erase 9 char (deleted)
       }
-
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == ""))
         PrintContent(proc);
@@ -285,20 +285,21 @@ int GetFdProc(string work_dir, struct ProcInfo &proc, string c, string t, string
   return 0;
 }
 
+// https://blog.csdn.net/yasi_xi/article/details/9226267
 void GetType(struct ProcInfo &proc, struct stat &stat_buffer) {
-  // https://blog.csdn.net/astrotycoon/article/details/8679676
-  if (stat_buffer.st_mode & S_IFMT == S_IFDIR)
+  if (S_ISDIR(stat_buffer.st_mode))
     proc.type = "DIR";
-  else if (stat_buffer.st_mode & S_IFMT == S_IFREG)
+  else if (S_ISREG(stat_buffer.st_mode))
     proc.type = "REG";
-  else if (stat_buffer.st_mode & S_IFMT == S_IFCHR)
+  else if (S_ISCHR(stat_buffer.st_mode))
     proc.type = "CHR";
-  else if (stat_buffer.st_mode & S_IFMT == S_IFIFO)
+  else if (S_ISFIFO(stat_buffer.st_mode))
     proc.type = "FIFO";
-  else if (stat_buffer.st_mode & S_IFMT == S_IFSOCK)
+  else if (S_ISSOCK(stat_buffer.st_mode))
     proc.type = "SOCK";
   else
     proc.type = "unknown";
+
   return;
 }
 
@@ -314,15 +315,16 @@ int GetLinkProc(string work_dir, struct ProcInfo &proc, string c, string t, stri
       proc.type = "unknown";
       proc.fd = link_name;
       proc.name = work_dir + " (Permission denied)";
+
+      if (auto pos = proc.name.find("(deleted)") != string::npos) {
+        proc.fd = "DEL";
+        proc.name.erase(pos, 9);  // erase 9 char (deleted)
+      }
       if ((proc.type.find(t) != std::string::npos || t == "") && \
         (proc.name.find(f) != std::string::npos || f == ""))
         PrintContent(proc);
       return 0;
     }
-    // no such file or directory
-    //else if (errno == ENOENT)
-    //  return 2;
-    //return 2;
   }
   else {
     if (stat(work_dir.c_str(), &stat_buffer) < 0) {
@@ -375,8 +377,8 @@ int GetMemProc(string work_dir, struct ProcInfo &proc, string c, string t, strin
   string pre_node = "", pre_name = "";
   while (getline(input_file, line)) {
     vector<string> elements;
-    elements = splitString(line, " ");
-    removeVectorSpaces(elements, "");
+    elements = SplitString(line, " ");
+    RemoveVectorSpaces(elements, "");
     proc.node = elements[4];
     proc.name = elements[5];
 
@@ -435,32 +437,27 @@ int main(int argc, char *argv[]) {
       // handle -c param
       if (proc.cmd == "")
         continue;
-
       if ((is_user = GetUser(work_dir, proc.user)) == false) {
         //cerr << "get user failed: " << errno << endl;
         continue;
       }
 
+      //cout << strc << ", " << strt << ", " << strf << "\n\n\n";
+
       if ((run_res = RunProc(work_dir, proc, strc, strt, strf, "cwd")) != 0) {
         //cerr << "run cwd proc error: " << errno << endl;
-        //continue;
       }
       if ((run_res = RunProc(work_dir, proc, strc, strt, strf, "root")) != 0) {
         //cerr << "run root proc error: " << errno << endl;
-        //continue;
       }
       if ((run_res = RunProc(work_dir, proc, strc, strt, strf, "exe")) != 0) {
         //cerr << "run exe proc error: " << errno << endl;
-        //continue;
       }
-
       if ((run_res = RunProc(work_dir, proc, strc, strt, strf, "mem")) != 0) {
         //cerr << "run mem proc error: " << errno << endl;
-        //continue;
       }
       if ((run_res = RunProc(work_dir, proc, strc, strt, strf, "fd")) != 0) {
         //cerr << "run fd proc error: " << errno << endl;
-        //continue;
       }
     }
   }
